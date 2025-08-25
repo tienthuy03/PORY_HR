@@ -85,6 +85,26 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.core:core:1.12.0'
+            force 'androidx.core:core-ktx:1.12.0'
+        }
+    }
+    
+    // Exclude problematic gesture handler modules temporarily
+    packagingOptions {
+        exclude '**/libc++_shared.so'
+        exclude '**/libjsc.so'
+    }
+    
+    // Add vector icons configuration
+    sourceSets {
+        main {
+            assets.srcDirs += ['../../node_modules/react-native-vector-icons/Fonts']
+        }
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -116,4 +136,9 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+    
+    // Force compatible AndroidX versions
+    implementation("androidx.core:core:1.12.0")
+    implementation("androidx.core:core-ktx:1.12.0")
 }
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
