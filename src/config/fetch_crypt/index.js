@@ -10,9 +10,6 @@ const sysFetch = (api, data, token) => {
     },
   };
 
-  // console.log('api', api + 'Exec/MOBILE_DECRYPT/');
-  // console.log('data', data);
-
   // ✅ Key và IV cố định, nên đồng bộ với phía C#
   const key = CryptoJS.enc.Utf8.parse("12345678901234567890123456789012"); // 32 bytes cho AES-256
   const iv = CryptoJS.enc.Utf8.parse("1234567890123456"); // 16 bytes cho AES block size
@@ -25,20 +22,10 @@ const sysFetch = (api, data, token) => {
   });
 
   const cryptoString = encrypted.ciphertext.toString(CryptoJS.enc.Base64); // chỉ mã hóa phần "ciphertext" (không salt)
-  // console.log("Encrypted:", cryptoString);
 
   // Gán chuỗi mã hóa vào data.pro mà không encode lại
   data.pro = cryptoString;
-  // ✅ Giải mã test (nếu cần)
-  /*
-  const decrypted = CryptoJS.AES.decrypt(
-    { ciphertext: CryptoJS.enc.Base64.parse(cryptoString) },
-    key,
-    { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
-  );
-  const originalText = decrypted.toString(CryptoJS.enc.Utf8);
-  console.log("originalText ", originalText);
-  */
+
   return axios
     .post(
       api + 'Exec/MOBILE_DECRYPT/',
@@ -53,12 +40,16 @@ const sysFetch = (api, data, token) => {
       return response.data;
     })
     .catch(err => {
-      console.log('err sysFetch', err);
-      if (err == 'AxiosError: Request failed with status code 401') {
+      if (err.response?.status === 401) {
         return 'Token Expired';
+      } else if (err.code === 'NETWORK_ERROR' || err.message.includes('Network Error')) {
+        throw new Error('Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.');
+      } else if (err.response?.status >= 500) {
+        throw new Error('Lỗi máy chủ. Vui lòng thử lại sau.');
+      } else if (err.response?.status >= 400) {
+        throw new Error('Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin.');
       } else {
-        console.log('err sysFetch');
-        console.log(err);
+        throw new Error('Có lỗi xảy ra khi kết nối đến máy chủ. Vui lòng thử lại.');
       }
     });
 };

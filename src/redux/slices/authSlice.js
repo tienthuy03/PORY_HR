@@ -1,49 +1,53 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authAPI } from '../../services/apiService';
+import { STORAGE_KEYS } from '../../constants';
 
 // Async thunk for login
 export const loginUser = createAsyncThunk(
   'auth/loginUser',
-  async ({ username, password }, { rejectWithValue }) => {
+  async ({ username, password, machine_id }, { rejectWithValue }) => {
     try {
-      // Simulate API call - replace with your actual login API
-      const response = await new Promise((resolve, reject) => {
-        setTimeout(() => {
-          if (username && password) {
-            // Mock user data - replace with actual API response
-            const userData = {
-              id: 1,
-              username: username,
-              fullName: 'Nguyễn Văn A',
-              email: 'nguyenvana@company.com',
-              position: 'Nhân viên',
-              department: 'IT',
-              avatar: null,
-              phone: '0123456789',
-              employeeCode: 'NV001',
-              joinDate: '2024-01-01',
-              status: 'active'
-            };
+      console.log('AuthSlice - Login attempt with:', { username, password: '***', machine_id });
 
-            const token = 'fake-token-' + Date.now();
-
-            resolve({
-              user: userData,
-              token: token
-            });
-          } else {
-            reject('Thông tin đăng nhập không hợp lệ');
-          }
-        }, 1000);
+      // Gọi API đăng nhập thông qua service
+      const response = await authAPI.login({
+        username,
+        password,
+        machine_id
       });
 
-      // Save to AsyncStorage for persistence
-      await AsyncStorage.setItem('userToken', response.token);
-      await AsyncStorage.setItem('userData', JSON.stringify(response.user));
+      console.log('AuthSlice - Full response:', response);
 
-      return response;
+      // Kiểm tra response từ server theo cấu trúc project cũ
+      if (response && (response.results === "S" || response.success === true)) {
+        const userData = response.data || response.user;
+        const token = response.data?.tokenLogin || response.data?.token || response.token;
+
+        console.log('AuthSlice - User data:', userData);
+        console.log('AuthSlice - Token:', token);
+
+        if (!userData || !token) {
+          throw new Error('Thông tin user hoặc token không hợp lệ');
+        }
+
+        // Lưu token và user data vào AsyncStorage với STORAGE_KEYS
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_TOKEN, token);
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+
+        return {
+          user: userData,
+          token: token
+        };
+      } else {
+        // Xử lý lỗi từ server
+        const errorMessage = response.errorData || response.message || response.error || 'Đăng nhập thất bại';
+        console.log('AuthSlice - Login failed with error:', errorMessage);
+        throw new Error(errorMessage);
+      }
     } catch (error) {
-      return rejectWithValue(error);
+      console.error('AuthSlice - Login error:', error);
+      return rejectWithValue(error.message || 'Có lỗi xảy ra');
     }
   }
 );
@@ -53,11 +57,12 @@ export const loadUserFromStorage = createAsyncThunk(
   'auth/loadUserFromStorage',
   async (_, { rejectWithValue }) => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      const userDataString = await AsyncStorage.getItem('userData');
+      const token = await AsyncStorage.getItem(STORAGE_KEYS.USER_TOKEN);
+      const userDataString = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
 
       if (token && userDataString) {
         const userData = JSON.parse(userDataString);
+        // console.log('AuthSlice - Loaded user data from storage:', userData);
         return { user: userData, token };
       }
 
@@ -73,12 +78,12 @@ export const logoutUser = createAsyncThunk(
   'auth/logoutUser',
   async (_, { rejectWithValue }) => {
     try {
-      // Clear AsyncStorage
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
+      // Gọi API logout thông qua service
+      await authAPI.logout();
       return true;
     } catch (error) {
-      return rejectWithValue(error);
+      console.error('Logout error:', error);
+      return rejectWithValue(error.message || 'Có lỗi xảy ra khi đăng xuất');
     }
   }
 );
@@ -102,7 +107,7 @@ const authSlice = createSlice({
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
         // Update in AsyncStorage
-        AsyncStorage.setItem('userData', JSON.stringify(state.user));
+        AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(state.user));
       }
     },
   },
@@ -153,6 +158,9 @@ const authSlice = createSlice({
         state.token = null;
         state.isAuthenticated = false;
         state.error = null;
+        // Clear AsyncStorage
+        AsyncStorage.removeItem(STORAGE_KEYS.USER_TOKEN);
+        AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
       })
       .addCase(logoutUser.rejected, (state, action) => {
         state.loading = false;

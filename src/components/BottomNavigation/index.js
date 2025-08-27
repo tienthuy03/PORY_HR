@@ -16,27 +16,27 @@ const BottomNavigation = ({ activeTab, onTabPress }) => {
   const tabs = [
     {
       key: 'home',
-      title: t('navigation.home'),
+      title: t('home'),
       icon: 'home',
     },
     {
       key: 'employee',
-      title: t('navigation.employee'),
+      title: t('employee'),
       icon: 'account-group',
     },
     {
       key: 'attendance',
-      title: t('navigation.attendance'),
+      title: t('attendance'),
       icon: 'clock',
     },
     {
       key: 'settings',
-      title: t('navigation.settings'),
+      title: t('settings'),
       icon: 'cog',
     },
     {
       key: 'profile',
-      title: t('navigation.profile'),
+      title: t('profile'),
       icon: 'account',
     },
   ];

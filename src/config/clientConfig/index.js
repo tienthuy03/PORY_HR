@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const APP_VERSION = "1.0.0";
 export const ServerIP = {
   phr: "http://115.73.215.94:8082/new_api/api/",
-  tvs: "http://14.241.235.252:8081/api/",
 };
 export const configAPI = [
   {

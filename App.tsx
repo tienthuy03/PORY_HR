@@ -51,6 +51,10 @@ const AppContent = () => {
     // Login success is handled by Redux, no need to set state here
   };
 
+  const handleNavigateToConfig = () => {
+    setIsConfigured(false);
+  };
+
   const handleLogout = async () => {
     await dispatch(logoutUser());
   };
@@ -64,7 +68,10 @@ const AppContent = () => {
       {!isConfigured ? (
         <ConfigScreen onConfigurationSuccess={handleConfigurationSuccess} />
       ) : !isAuthenticated ? (
-        <LoginScreen onLoginSuccess={handleLoginSuccess} />
+        <LoginScreen
+          onLoginSuccess={handleLoginSuccess}
+          onNavigateToConfig={handleNavigateToConfig}
+        />
       ) : (
         <MainApp onLogout={handleLogout} />
       )}

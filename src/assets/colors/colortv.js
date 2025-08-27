@@ -13,7 +13,8 @@ export const Color = {
   darkGray: '#424949',
   oneContentBorder: '#E5E7E9',
   //change color
-  mainColor: '#FA812F', //Màu chủ đạo
+  // mainColor: '#FA812F', //Màu chủ đạo
+  mainColor: '#164085',
   mainColor2: '#FF9C49', //Màu chủ đạo
   mainColor3: '#FF5E62',
   foreignColor: '#FFB22C', //Màu phụ

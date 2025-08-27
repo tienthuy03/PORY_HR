@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Keyboard,
   Animated,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -18,15 +19,137 @@ import { SetApiURL, sysLoadTheme } from '../../../redux/slices/systemSlice';
 import { ServerIP, configAPI } from '../../../config/clientConfig';
 import axios from 'axios';
 import CryptoJS from 'crypto-js';
+import { useTheme } from '../../../hooks/useTheme';
+import { useTranslation } from 'react-i18next';
+import CommonButton from '../../../components/CommonButton';
+import LoadingPopup from '../../../components/LoadingPopup';
+import AlertPopup from '../../../components/AlertPopup';
 const ConfigScreen = ({ onConfigurationSuccess }) => {
   const dispatch = useDispatch();
+  const { colors } = useTheme();
+  const { t } = useTranslation();
   const [clientId, setClientId] = useState('');
   const [captchaText, setCaptchaText] = useState('');
   const [currentNumber, setCurrentNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [load, setLoad] = useState(false);
   const [isShow, setIsShow] = useState(false);
+  const [showLoadingPopup, setShowLoadingPopup] = useState(false);
+  const [showAlertPopup, setShowAlertPopup] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: null,
+  });
 
+
+
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: 20,
+      paddingTop: 50,
+    },
+    title: {
+      fontSize: 18,
+      fontFamily: 'Roboto-Bold',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    formContainer: {
+      width: '100%',
+    },
+    inputGroup: {
+      marginBottom: 12,
+    },
+    label: {
+      fontSize: 14,
+      marginBottom: 6,
+      color: colors.textSecondary,
+      fontFamily: 'Roboto-Medium',
+    },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+    },
+    inputIcon: {
+      paddingHorizontal: 10,
+    },
+    input: {
+      flex: 1,
+      height: 42,
+      color: colors.textPrimary,
+      fontFamily: 'Roboto-Regular',
+    },
+    captchaContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    captchaInputContainer: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+      marginRight: 10,
+    },
+    captchaBox: {
+      width: 80,
+      height: 42,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 8,
+      backgroundColor: colors.borderLight,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    captchaText: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.primary,
+      fontFamily: 'Roboto-Bold',
+    },
+
+    buttonContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 12,
+      gap: 12,
+    },
+    cancelButton: {
+      flex: 1,
+    },
+    cancelButtonText: {
+      fontSize: 16,
+      fontFamily: 'Roboto-Medium',
+    },
+    confirmButton: {
+      flex: 1,
+    },
+    confirmButtonText: {
+      fontSize: 16,
+      fontFamily: 'Roboto-Medium',
+    },
+
+    bgImage: {
+      width: '100%',
+      height: 300,
+      marginTop: '4%',
+    },
+  });
   // Tạo số ngẫu nhiên khi component mount
   useEffect(() => {
     generateRandomNumber();
@@ -37,29 +160,42 @@ const ConfigScreen = ({ onConfigurationSuccess }) => {
     setCurrentNumber(randomNum.toString());
   };
 
+  // Helper function để hiển thị alert popup
+  const showAlert = (type, title, message, onConfirm = null) => {
+    setAlertConfig({
+      type,
+      title,
+      message,
+      onConfirm,
+    });
+    setShowAlertPopup(true);
+  };
+
 
   const onCancel = () => {
     // Handle cancel action
-    Alert.alert("Thông báo", "Bạn có chắc muốn huỷ bỏ?", [
-      { text: "Không" },
-      {
-        text: "Có",
-        onPress: () => {
-          // Handle cancel logic here
-        }
+    showAlert(
+      'warning',
+      t('info'),
+      t('cancelConfirm'),
+      () => {
+        // Handle cancel logic here
+        setShowAlertPopup(false);
       }
-    ]);
+    );
   };
 
   const onSave = () => {
     if (clientId.length === 0) {
-      Alert.alert("Thông báo", "Bạn chưa nhập Client Id.", [{ text: "Đóng" }]);
+      showAlert('error', t('info'), t('clientIdRequired'), () => {
+        setShowAlertPopup(false);
+      });
       return;
     }
     if (captchaText.length === 0) {
-      Alert.alert("Thông báo", "Vui lòng nhập số xác nhận bên trên.", [
-        { text: "Đóng" },
-      ]);
+      showAlert('error', t('info'), t('captchaRequired'), () => {
+        setShowAlertPopup(false);
+      });
       return;
     }
     let originNumber = currentNumber;
@@ -69,20 +205,18 @@ const ConfigScreen = ({ onConfigurationSuccess }) => {
     if (originNumber === inputNumber) {
       console.log("check");
       setLoad(true);
+      setShowLoadingPopup(true); // Hiển thị loading popup
       checkAPI(clientId);
     } else {
-      Alert.alert(
-        "Thông báo",
-        "Số xác nhận không trùng khớp vui lòng kiểm tra lại",
-        [
-          {
-            text: "Đóng",
-            onPress: () => {
-              // setIsShow(false);
-              // RNRestart.Restart();
-            },
-          },
-        ]
+      showAlert(
+        'error',
+        t('info'),
+        t('captchaMismatch'),
+        () => {
+          // setIsShow(false);
+          // RNRestart.Restart();
+          setShowAlertPopup(false);
+        }
       );
     }
   };
@@ -99,59 +233,68 @@ const ConfigScreen = ({ onConfigurationSuccess }) => {
     await AsyncStorage.setItem("themeName", "1");
     await AsyncStorage.setItem("CLIENT_ID", clientId.toUpperCase());
     dispatch(SetApiURL(originalText));
-    Alert.alert("Thông báo", "Cấu hình thành công.", [
-      {
-        text: "Đóng",
-        onPress: () => {
-          setIsShow(false);
-          if (onConfigurationSuccess) {
-            onConfigurationSuccess();
-          }
-        },
-      },
-    ]);
+    showAlert(
+      'success',
+      t('info'),
+      t('configSuccess'),
+      () => {
+        setIsShow(false);
+        if (onConfigurationSuccess) {
+          onConfigurationSuccess();
+        }
+        setShowAlertPopup(false);
+      }
+    );
   };
   const checkAPI = async (clientId) => {
     let rsCheck = await checkConfigAPI(clientId);
     if (rsCheck) {
-      Alert.alert("Thông báo", "Cấu hình thành công.", [
-        {
-          text: "Đóng",
-          onPress: () => {
-            setIsShow(false);
-            if (onConfigurationSuccess) {
-              onConfigurationSuccess();
-            }
-          },
-        },
-      ]);
+      showAlert(
+        'success',
+        t('info'),
+        t('configSuccess'),
+        () => {
+          setIsShow(false);
+          if (onConfigurationSuccess) {
+            onConfigurationSuccess();
+          }
+          setShowAlertPopup(false);
+        }
+      );
     } else {
       //checkoffline
       let rsCheckOffline = await checkConfigAPIOffline(clientId);
       console.log("check config ", rsCheckOffline);
       if (rsCheckOffline) {
         setLoad(false);
-        Alert.alert("Thông báo", "Cấu hình thành công.", [
-          {
-            text: "Đóng",
-            onPress: () => {
-              setIsShow(false);
-              if (onConfigurationSuccess) {
-                onConfigurationSuccess();
-              }
-            },
-          },
-        ]);
+        setShowLoadingPopup(false); // Ẩn loading popup
+        showAlert(
+          'success',
+          t('info'),
+          t('configSuccess'),
+          () => {
+            setIsShow(false);
+            if (onConfigurationSuccess) {
+              onConfigurationSuccess();
+            }
+            setShowAlertPopup(false);
+          }
+        );
       } else {
         setLoad(false);
-        Alert.alert("Thông báo", "Cấu hình thất bại.", [
-          {
-            text: "Đóng",
-          },
-        ]);
+        setShowLoadingPopup(false); // Ẩn loading popup
+        showAlert(
+          'error',
+          t('info'),
+          t('configFailed'),
+          () => {
+            setShowAlertPopup(false);
+          }
+        );
       }
     }
     setLoad(false);
+    setShowLoadingPopup(false); // Ẩn loading popup
   };
   const checkConfigAPIOffline = (clientId) => {
     return new Promise(async (resolve) => {
@@ -302,178 +445,102 @@ const ConfigScreen = ({ onConfigurationSuccess }) => {
 
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Cấu hình tài khoản</Text>
+    <>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Image
+            source={require('../../../assets/images/setting-account.png')}
+            style={styles.bgImage}
+          />
+          <Text style={styles.title}>{t('configTitle')}</Text>
+          <View style={styles.formContainer}>
+            {/* Mã khách hàng */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('clientId')}</Text>
+              <View style={styles.inputContainer}>
+                <Icon name="card-account-details" size={20} color={Color.textPrimary3} style={styles.inputIcon} />
+                <TextInput
+                  value={clientId}
+                  onChangeText={setClientId}
+                  style={styles.input}
+                  placeholder={t('enterClientId')}
+                  placeholderTextColor="#999"
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
 
-        <View style={styles.formContainer}>
-          {/* Mã khách hàng */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Mã khách hàng</Text>
-            <View style={styles.inputContainer}>
-              <Icon name="card-account-details" size={20} color={Color.textPrimary3} style={styles.inputIcon} />
-              <TextInput
-                value={clientId}
-                onChangeText={setClientId}
-                style={styles.input}
-                placeholder="Nhập mã khách hàng"
-                placeholderTextColor="#999"
-                autoCapitalize="characters"
+            {/* Số xác nhận */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('captcha')}</Text>
+              <View style={styles.captchaContainer}>
+                <View style={styles.captchaInputContainer}>
+                  <Icon name="shield-check" size={20} color={Color.textPrimary3} style={styles.inputIcon} />
+                  <TextInput
+                    value={captchaText}
+                    onChangeText={setCaptchaText}
+                    style={styles.input}
+                    placeholder={t('enterCaptcha')}
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.captchaBox}>
+                  <Text style={styles.captchaText}>{currentNumber}</Text>
+                </View>
+              </View>
+            </View>
+
+
+
+            {/* Buttons */}
+            <View style={styles.buttonContainer}>
+              <CommonButton
+                title={t('cancel')}
+                onPress={onCancel}
+                backgroundColor={colors.border}
+                titleColor={colors.textPrimary}
+                style={styles.cancelButton}
+                textStyle={styles.cancelButtonText}
+              />
+              <CommonButton
+                title={loading ? t('processing') : t('confirm')}
+                onPress={onSave}
+                backgroundColor={colors.primary}
+                titleColor={colors.surface}
+                loading={loading}
+                disabled={loading}
+                style={styles.confirmButton}
+                textStyle={styles.confirmButtonText}
               />
             </View>
           </View>
-
-          {/* Số xác nhận */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Số xác nhận</Text>
-            <View style={styles.captchaContainer}>
-              <View style={styles.captchaInputContainer}>
-                <Icon name="shield-check" size={20} color={Color.textPrimary3} style={styles.inputIcon} />
-                <TextInput
-                  value={captchaText}
-                  onChangeText={setCaptchaText}
-                  style={styles.input}
-                  placeholder="Nhập số xác nhận"
-                  placeholderTextColor="#999"
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.captchaBox}>
-                <Text style={styles.captchaText}>{currentNumber}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Buttons */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelButtonText}>Huỷ bỏ</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.confirmButton, loading && styles.disabledButton]}
-              onPress={onSave}
-              disabled={loading}
-            >
-              <Text style={styles.confirmButtonText}>
-                {loading ? 'Đang xử lý...' : 'Xác nhận'}
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+
+      {/* Loading Popup */}
+      <LoadingPopup
+        visible={showLoadingPopup}
+        titleKey="processing"
+        messageKey="pleaseWait"
+        loadingColor={colors.primary}
+      />
+
+      {/* Alert Popup */}
+      <AlertPopup
+        visible={showAlertPopup}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={() => setShowAlertPopup(false)}
+        onRequestClose={() => setShowAlertPopup(false)}
+      />
+    </>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F6FF',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 50,
-  },
-  title: {
-    fontSize: 18,
-    fontFamily: 'Roboto-Bold',
-    color: Color.textPrimary2,
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  formContainer: {
-    width: '100%',
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 6,
-    color: Color.textPrimary3,
-    fontFamily: 'Roboto-Medium',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: 'white',
-  },
-  inputIcon: {
-    paddingHorizontal: 10,
-  },
-  input: {
-    flex: 1,
-    height: 42,
-    color: '#333',
-    fontFamily: 'Roboto-Regular',
-  },
-  captchaContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  captchaInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: 'white',
-    marginRight: 10,
-  },
-  captchaBox: {
-    width: 80,
-    height: 42,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  captchaText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Color.mainColor,
-    fontFamily: 'Roboto-Bold',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 30,
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: '#ccc',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontFamily: 'Roboto-Medium',
-  },
-  confirmButton: {
-    flex: 1,
-    backgroundColor: Color.mainColor,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  disabledButton: {
-    backgroundColor: '#999',
-  },
-  confirmButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontFamily: 'Roboto-Medium',
-  },
-});
 
 export default ConfigScreen;
+
+
