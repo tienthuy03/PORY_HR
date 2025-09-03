@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LoginScreen from './src/screens/SystemScreens/LoginScreen';
 import ConfigScreen from './src/screens/SystemScreens/ConfigScreen';
 import MainApp from './src/screens/MainScreens/MainApp';
@@ -73,7 +75,11 @@ const AppContent = () => {
           onNavigateToConfig={handleNavigateToConfig}
         />
       ) : (
-        <MainApp onLogout={handleLogout} />
+        <SafeAreaProvider>
+          <NavigationContainer>
+            <MainApp onLogout={handleLogout} />
+          </NavigationContainer>
+        </SafeAreaProvider>
       )}
     </>
   );

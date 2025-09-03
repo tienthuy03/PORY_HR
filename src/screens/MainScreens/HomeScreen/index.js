@@ -10,20 +10,268 @@ import {
   Button,
   FlatList,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { setMenuData } from '../../../redux/slices/menuSlice';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../hooks/useAuth';
 import { APP_VERSION } from '../../../config/clientConfig';
-import { sysFetch } from '../../../services/apiService';
+import { sysFetch, sysFetch1 } from '../../../services/apiService';
 import { STORAGE_KEYS } from '../../../constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const HomeScreen = () => {
+const HomeScreen = (props) => {
   const { t } = useTranslation();
   const { user } = useSelector((state) => state.auth);
   const { colors } = useTheme();
+  const { getUserInfo, hasPermission } = useAuth();
+  const userInfo = getUserInfo();
+  const dispatch = useDispatch();
+  const [loadMenu, setLoadMenu] = useState(true);
+  const [dataMenuMBHR, setDataMenuMBHR] = useState([]);
+  const [API_URL, setAPI_URL] = useState('');
+  const [tokenLogin, setTokenLogin] = useState('');
+  const [menuFetched, setMenuFetched] = useState(false);
+
+  // Lấy API_URL và token từ AsyncStorage
+  useEffect(() => {
+    const getAPIConfig = async () => {
+      try {
+        const apiUrl = await AsyncStorage.getItem(STORAGE_KEYS.API_URL);
+        const token = await AsyncStorage.getItem(STORAGE_KEYS.USER_TOKEN);
+        console.log('AsyncStorage - API_URL:', apiUrl);
+        console.log('AsyncStorage - token:', token);
+
+        setAPI_URL(apiUrl);
+        setTokenLogin(token);
+      } catch (error) {
+        console.log('Error getting API config:', error);
+      }
+    };
+
+    getAPIConfig();
+  }, []); // Chỉ chạy một lần khi component mount
+
+  // Gọi getMenu khi có đủ data
+  useEffect(() => {
+    if (API_URL && tokenLogin && userInfo && loadMenu && !menuFetched) {
+      console.log('All data ready, calling getMenu...');
+      setMenuFetched(true); // Đánh dấu đã gọi API
+      getMenu();
+    }
+  }, [API_URL, tokenLogin, userInfo]); // Chỉ chạy khi các dependencies thay đổi
+
+  const refreshNewToken = (callback) => {
+    // Implement token refresh logic here
+    console.log('Token expired, need to refresh');
+    // You can call login again or implement refresh token logic
+  };
+
+  // Debug logs
+  console.log('=== Debug Info ===');
+  console.log('dataMenuMBHR length:', dataMenuMBHR.length);
+  console.log('loadMenu:', loadMenu);
+  console.log('menuFetched:', menuFetched);
+  console.log('API_URL exists:', !!API_URL);
+  console.log('tokenLogin exists:', !!tokenLogin);
+  console.log('userInfo exists:', !!userInfo);
+
+  let dataMenuMBHRs;
+  const getMenu = () => {
+    if (!API_URL || !tokenLogin || !userInfo) {
+      console.log('Missing required parameters for getMenu');
+      return;
+    }
+
+    console.log({
+      p1_varchar2: userInfo.userPk,
+      p2_varchar2: userInfo.empPk,
+      p3_varchar2: APP_VERSION,
+      p4_varchar2: userInfo.crt_by,
+    });
+
+    sysFetch(
+      API_URL,
+      {
+        pro: "STV_HR_SEL_MBI_HRMENU_0",  // Giữ nguyên procedure này vì nó hoạt động tốt
+        // pro: "SELHRMENU0",  // Giữ nguyên procedure này vì nó hoạt động tốt
+        in_par: {
+          p1_varchar2: userInfo.userPk,
+          p2_varchar2: userInfo.empPk,
+          p3_varchar2: APP_VERSION,
+          p4_varchar2: userInfo.crt_by,
+        },
+        out_par: {
+          p1_sys: "menu",
+        },
+      },
+      tokenLogin
+    )
+      .then((rs) => {
+        console.log('API Response:', rs);
+
+        if (rs == "Token Expired") {
+          console.log('Token expired, refreshing...');
+          refreshNewToken("getMenu");
+        }
+        if (rs != "Token Expired") {
+          console.log('Processing menu data...');
+          setLoadMenu(false);
+          dataMenuMBHRs = rs.data?.menu || [];
+          console.log('Raw menu data:', dataMenuMBHRs);
+
+          let dataMenuMBHRc = [];
+          try {
+            dataMenuMBHRs.map((item) => {
+              if (item.menu_cd && item.menu_cd.length === 6) {
+                dataMenuMBHRc.push(item);
+              }
+            });
+            // Chia cột cho menu home - chỉ áp dụng cho menu cha (độ dài 6)
+            const parentMenus = dataMenuMBHRs.filter(item => item.menu_cd && item.menu_cd.length === 6);
+            const childMenus = dataMenuMBHRs.filter(item => item.menu_cd && item.menu_cd.length > 6);
+
+            console.log("Parent menus (for layout):", parentMenus.length);
+            console.log("Child menus (for Redux):", childMenus.length);
+
+            if (userInfo.menuType == 2) {
+              console.log("userInfo.menuType ", 0 % 3);
+              if (
+                parentMenus.filter((x) => x.menu_cd !== "MBHRAN").length > 3
+              ) {
+                if (
+                  (parentMenus.filter((x) => x.menu_cd !== "MBHRAN").length -
+                    1) %
+                  3 ===
+                  1
+                ) {
+                  dataMenuMBHRc.push({ pk: "pk", parent: true });
+                }
+                if (
+                  (parentMenus.filter((x) => x.menu_cd !== "MBHRAN").length -
+                    1) %
+                  3 ===
+                  2
+                ) {
+                  dataMenuMBHRc.push(
+                    { pk: "pk", parent: true },
+                    { pk: "pk", parent: true }
+                  );
+                }
+              } else {
+                if (
+                  parentMenus.filter((x) => x.menu_cd !== "MBHRAN").length ==
+                  1
+                ) {
+                  dataMenuMBHRc.push(
+                    { pk: "pk", parent: true },
+                    { pk: "pk", parent: true }
+                  );
+                }
+
+                if (
+                  parentMenus.filter((x) => x.menu_cd !== "MBHRAN").length ==
+                  2
+                ) {
+                  dataMenuMBHRc.push({ pk: "pk", parent: true });
+                }
+              }
+            } else {
+              if (
+                parentMenus.filter((x) => x.menu_cd !== "MBHRAN").length %
+                2 ===
+                1
+              ) {
+                dataMenuMBHRc.push({ pk: "pk", parent: true });
+              }
+            }
+
+            const finalMenuData = dataMenuMBHRc.filter(
+              (x) => x.menu_cd !== "MBHRAN" && x.menu_cd !== "MBSYSY"
+            );
+
+            // Thêm menu con vào finalMenuData để dispatch vào Redux
+            const finalMenuDataWithChildren = [
+              ...finalMenuData,
+              ...childMenus.filter(x => x.menu_cd !== "MBHRAN" && x.menu_cd !== "MBSYSY")
+            ];
+
+            console.log('Final menu data (for display):', finalMenuData);
+            console.log('Final menu data with children (for Redux):', finalMenuDataWithChildren);
+            setDataMenuMBHR(finalMenuData);
+            // Dispatch vào menuReducer giống src_old - bao gồm cả menu cha và menu con
+            console.log('Dispatching to Redux:', finalMenuDataWithChildren);
+            dispatch(setMenuData(finalMenuDataWithChildren));
+            console.log('Menu data dispatched to Redux');
+          } catch (error) {
+            setLoadMenu(false);
+            console.log(error);
+          }
+        }
+      })
+      .catch((error) => {
+        setLoadMenu(false);
+        console.log(error);
+      });
+  };
+
+  // Handle menu item press - Navigate to appropriate stack
+  const handleMenuItemPress = (item) => {
+    console.log('Navigate to:', item.menu_cd);
+    console.log('Menu Item Data:', item);
+    console.log('Menu Title:', item.vie || item.title || item.eng || item.menu_cd);
+
+    // Use callback function to navigate instead of navigation object
+    if (props.onNavigate) {
+      props.onNavigate(item.menu_cd, item); // Pass the menu item data
+    } else {
+      console.warn('Navigation callback not provided');
+    }
+  };
+
+  // MenuItem Component
+  const MenuItem = ({ item, colors, onPress }) => {
+    return (
+      <TouchableOpacity
+        style={[
+          styles.deviceCard,
+          {
+            backgroundColor: colors.card,
+          },
+        ]}
+        onPress={() => onPress(item)}
+      >
+        <View style={styles.menuItemContent}>
+          <View style={styles.iconContainer}>
+            <Icon
+              name={(item.icon)}
+              size={24}
+              color={colors.mainColor}
+            />
+          </View>
+          <Text
+            style={[
+              styles.menuItemText,
+              { color: colors.textPrimary },
+            ]}
+            numberOfLines={2}
+          >
+            {item.vie || item.title || item.eng || item.menu_cd}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+  // Render item for FlatList
+  const renderMenuItem = ({ item, index }) => (
+    <MenuItem
+      item={item}
+      colors={colors}
+      onPress={handleMenuItemPress}
+    />
+  );
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -208,254 +456,8 @@ const HomeScreen = () => {
       flex: 1,
     },
   });
-  const { getUserInfo, hasPermission } = useAuth();
-  const userInfo = getUserInfo();
-  const [loadMenu, setLoadMenu] = useState(true);
-  const [dataMenuMBHR, setDataMenuMBHR] = useState([]);
-  const [API_URL, setAPI_URL] = useState('');
-  const [tokenLogin, setTokenLogin] = useState('');
-  const [menuFetched, setMenuFetched] = useState(false);
 
-  // Lấy API_URL và token từ AsyncStorage
-  useEffect(() => {
-    const getAPIConfig = async () => {
-      try {
-        const apiUrl = await AsyncStorage.getItem(STORAGE_KEYS.API_URL);
-        const token = await AsyncStorage.getItem(STORAGE_KEYS.USER_TOKEN);
-        console.log('AsyncStorage - API_URL:', apiUrl);
-        console.log('AsyncStorage - token:', token);
-
-        setAPI_URL(apiUrl);
-        setTokenLogin(token);
-      } catch (error) {
-        console.log('Error getting API config:', error);
-      }
-    };
-
-    getAPIConfig();
-  }, []); // Chỉ chạy một lần khi component mount
-
-  // Gọi getMenu khi có đủ data
-  useEffect(() => {
-    if (API_URL && tokenLogin && userInfo && loadMenu && !menuFetched) {
-      console.log('All data ready, calling getMenu...');
-      setMenuFetched(true); // Đánh dấu đã gọi API
-      getMenu();
-    }
-  }, [API_URL, tokenLogin, userInfo]); // Chỉ chạy khi các dependencies thay đổi
-
-  const refreshNewToken = (callback) => {
-    // Implement token refresh logic here
-    console.log('Token expired, need to refresh');
-    // You can call login again or implement refresh token logic
-  };
-
-  // Debug logs
-  console.log('=== Debug Info ===');
-  console.log('dataMenuMBHR length:', dataMenuMBHR.length);
-  console.log('loadMenu:', loadMenu);
-  console.log('menuFetched:', menuFetched);
-  console.log('API_URL exists:', !!API_URL);
-  console.log('tokenLogin exists:', !!tokenLogin);
-  console.log('userInfo exists:', !!userInfo);
-
-  let dataMenuMBHRs;
-  const getMenu = () => {
-    if (!API_URL || !tokenLogin || !userInfo) {
-      console.log('Missing required parameters for getMenu');
-      return;
-    }
-
-    console.log({
-      p1_varchar2: userInfo.userPk,
-      p2_varchar2: userInfo.empPk,
-      p3_varchar2: APP_VERSION,
-      p4_varchar2: userInfo.crt_by,
-    });
-
-    sysFetch(
-      API_URL,
-      {
-        pro: "STV_HR_SEL_MBI_HRMENU_0",
-        in_par: {
-          p1_varchar2: userInfo.userPk,
-          p2_varchar2: userInfo.empPk,
-          p3_varchar2: APP_VERSION,
-          p4_varchar2: userInfo.crt_by,
-        },
-        out_par: {
-          p1_sys: "menu",
-        },
-      },
-      tokenLogin
-    )
-      .then((rs) => {
-        console.log('API Response:', rs);
-
-        if (rs == "Token Expired") {
-          console.log('Token expired, refreshing...');
-          refreshNewToken("getMenu");
-        }
-        if (rs != "Token Expired") {
-          console.log('Processing menu data...');
-          setLoadMenu(false);
-          dataMenuMBHRs = rs.data?.menu || [];
-          console.log('Raw menu data:', dataMenuMBHRs);
-
-          let dataMenuMBHRc = [];
-          try {
-            dataMenuMBHRs.map((item) => {
-              if (item.menu_cd && item.menu_cd.length === 6) {
-                dataMenuMBHRc.push(item);
-              }
-            });
-            // Chia cột cho menu home
-            if (userInfo.menuType == 2) {
-              console.log("userInfo.menuType ", 0 % 3);
-              if (
-                dataMenuMBHRc.filter((x) => x.menu_cd !== "MBHRAN").length > 3
-              ) {
-                if (
-                  (dataMenuMBHRc.filter((x) => x.menu_cd !== "MBHRAN").length -
-                    1) %
-                  3 ===
-                  1
-                ) {
-                  dataMenuMBHRc.push({ pk: "pk", parent: true });
-                }
-                if (
-                  (dataMenuMBHRc.filter((x) => x.menu_cd !== "MBHRAN").length -
-                    1) %
-                  3 ===
-                  2
-                ) {
-                  dataMenuMBHRc.push(
-                    { pk: "pk", parent: true },
-                    { pk: "pk", parent: true }
-                  );
-                }
-              } else {
-                if (
-                  dataMenuMBHRc.filter((x) => x.menu_cd !== "MBHRAN").length ==
-                  1
-                ) {
-                  dataMenuMBHRc.push(
-                    { pk: "pk", parent: true },
-                    { pk: "pk", parent: true }
-                  );
-                }
-
-                if (
-                  dataMenuMBHRc.filter((x) => x.menu_cd !== "MBHRAN").length ==
-                  2
-                ) {
-                  dataMenuMBHRc.push({ pk: "pk", parent: true });
-                }
-              }
-            } else {
-              if (
-                dataMenuMBHRc.filter((x) => x.menu_cd !== "MBHRAN").length %
-                2 ===
-                1
-              ) {
-                dataMenuMBHRc.push({ pk: "pk", parent: true });
-              }
-            }
-
-            const finalMenuData = dataMenuMBHRc.filter(
-              (x) => x.menu_cd !== "MBHRAN" && x.menu_cd !== "MBSYSY"
-            );
-            console.log('Final menu data:', finalMenuData);
-            setDataMenuMBHR(finalMenuData);
-          } catch (error) {
-            setLoadMenu(false);
-            console.log(error);
-          }
-        }
-      })
-      .catch((error) => {
-        setLoadMenu(false);
-        console.log(error);
-      });
-  };
-
-  // Handle menu item press
-  const handleMenuItemPress = (item) => {
-    console.log('Navigate to:', item.menu_cd);
-    // Add your navigation logic here
-  };
-  // Icon mapping function
-  const getMenuIcon = (menuCode) => {
-    const iconMap = {
-      'MBHRAN': 'account-group', // HR Management
-      'MBHRAT': 'clock-check', // Attendance
-      'MBHRPA': 'account-cash', // Payroll
-      'MBHRLE': 'calendar-clock', // Leave
-      'MBHRTR': 'school', // Training
-      'MBHRPE': 'account-multiple', // Performance
-      'MBHRRE': 'file-chart', // Reports
-      'MBHRSY': 'cog', // Settings
-      'MBHRCL': 'clipboard-check', // Claims
-      'MBHRAS': 'desktop-classic', // Assets
-      'MBHRDI': 'folder-multiple', // Directory
-      'MBHRBR': 'coffee', // Break Time
-      'MBHRCI': 'login-variant', // Check In/Out
-      'MBHRTA': 'clipboard-text', // Tasks
-      // Thêm các icon mới cho menu items trong ảnh
-      'MBHRQU': 'help-circle', // Truy vấn thông tin
-      'MBHRRG': 'file-document-edit', // Đăng ký - Xác nhận
-      'MBHRAP': 'calendar-check', // Quản lý phê duyệt
-      'MBHRFC': 'face-recognition', // Chấm công khuôn mặt
-      'MBHRCH': 'chart-bar', // Biểu đồ - Thống kê
-      'MBHRAM': 'file-document-multiple', // Quản lý đơn từ
-      'MBHRDM': 'database', // Quản lý dữ liệu
-      'MBHRPM': 'factory', // Quản lý sản lượng
-      'MBHRWH': 'warehouse', // Vựa
-    };
-    return iconMap[menuCode] || 'help-circle';
-  };
-
-  // MenuItem Component
-  const MenuItem = ({ item, colors, onPress }) => {
-    return (
-      <TouchableOpacity
-        style={[
-          styles.deviceCard,
-          {
-            backgroundColor: colors.card,
-          },
-        ]}
-        onPress={() => onPress(item)}
-      >
-        <View style={styles.menuItemContent}>
-          <View style={styles.iconContainer}>
-            <Icon
-              name={item.icon}
-              size={24}
-              color={colors.mainColor}
-            />
-          </View>
-          <Text
-            style={[
-              styles.menuItemText,
-              { color: colors.textPrimary },
-            ]}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-  // Render item for FlatList
-  const renderMenuItem = ({ item, index }) => (
-    <MenuItem
-      item={item}
-      colors={colors}
-      onPress={handleMenuItemPress}
-    />
-  );
+  console.log('dataMenuMBHRs', dataMenuMBHRs);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>

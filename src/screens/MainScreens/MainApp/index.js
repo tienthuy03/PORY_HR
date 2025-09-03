@@ -6,16 +6,34 @@ import EmployeeScreen from '../EmployeeScreen';
 import AttendanceScreen from '../AttendanceScreen';
 import SettingsScreen from '../SettingsScreen';
 import ProfileScreen from '../ProfileScreen';
+import MBHRIN_TruyVanThongTin from '../MBHRIN_TruyVanThongTin';
 import BottomNavigation from '../../../components/BottomNavigation';
 
 const MainApp = ({ onLogout }) => {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('home');
+  const [currentScreen, setCurrentScreen] = useState('home');
+  const [menuData, setMenuData] = useState(null);
+
+  // Navigate to different screens
+  const navigateToScreen = (screenName, data = null) => {
+    setCurrentScreen(screenName);
+    if (data) {
+      setMenuData(data);
+    }
+  };
+
+  // Handle back navigation
+  const handleGoBack = () => {
+    setCurrentScreen('home');
+    setActiveTab('home');
+    setMenuData(null);
+  };
 
   const renderScreen = () => {
-    switch (activeTab) {
+    switch (currentScreen) {
       case 'home':
-        return <HomeScreen />;
+        return <HomeScreen onNavigate={navigateToScreen} />;
       case 'employee':
         return <EmployeeScreen />;
       case 'attendance':
@@ -24,9 +42,16 @@ const MainApp = ({ onLogout }) => {
         return <SettingsScreen />;
       case 'profile':
         return <ProfileScreen onLogout={onLogout} />;
+      case 'MBHRIN':
+        return <MBHRIN_TruyVanThongTin navigation={{ goBack: handleGoBack }} menuData={menuData} />;
       default:
-        return <HomeScreen />;
+        return <HomeScreen onNavigate={navigateToScreen} />;
     }
+  };
+
+  const handleTabPress = (tabName) => {
+    setActiveTab(tabName);
+    setCurrentScreen(tabName);
   };
 
   return (
@@ -34,10 +59,12 @@ const MainApp = ({ onLogout }) => {
       <View style={styles.screenContainer}>
         {renderScreen()}
       </View>
-      <BottomNavigation
-        activeTab={activeTab}
-        onTabPress={setActiveTab}
-      />
+      {currentScreen !== 'MBHRIN' && (
+        <BottomNavigation
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+        />
+      )}
     </View>
   );
 };

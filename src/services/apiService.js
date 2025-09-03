@@ -103,6 +103,39 @@ export const sysFetch = (api, data, token) => {
     });
 };
 
+
+export const sysFetch1 = (api, data, token) => {
+  let axiosConfig = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+  return axios
+    .post(
+      api + API_ENDPOINTS.EXEC_MOBILE,
+      {
+        ...data,
+        machine_id: deviceId,
+        token: 'tvs',
+      },
+      axiosConfig,
+    )
+    .then(response => {
+      // console.log('response ', response);
+      return response.data;
+    })
+    .catch(err => {
+      console.log('err sysFetch', err);
+      if (err == 'AxiosError: Request failed with status code 401') {
+        return 'Token Expired';
+      } else {
+        console.log('err sysFetch');
+        console.log(err);
+      }
+    });
+};
+
+
 // API service functions
 export const authAPI = {
   // Đăng nhập - sử dụng endpoint giống project cũ

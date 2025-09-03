@@ -2,12 +2,14 @@ import { configureStore } from '@reduxjs/toolkit';
 import systemReducer from './slices/systemSlice';
 import authReducer from './slices/authSlice';
 import settingsReducer from './slices/settingsSlice';
+import menuReducer from './slices/menuSlice';
 
 export const store = configureStore({
   reducer: {
     system: systemReducer,
     auth: authReducer,
     settings: settingsReducer,
+    menuReducer: menuReducer, // Đổi tên từ 'menu' thành 'menuReducer' giống src_old
   },
 });
 
